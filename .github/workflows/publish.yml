@@ -1,0 +1,105 @@
+name: Publish NuGet
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.cs"
+      - "**/*.csproj"
+      - "plugin.json"
+      - "Directory.Build.props"
+      - "nuget.config"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override (must be greater than latest on nuget.org)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugin
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet build OrionSuperflat.csproj -c Release
+
+  publish:
+    if: github.repository_owner == 'OrionBedrock'
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugin
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve version
+        id: ver
+        env:
+          PACKAGE_ID: Orion.Plugins.Superflat
+          VERSION_OVERRIDE: ${{ github.event.inputs.version }}
+          CSPROJ: OrionSuperflat.csproj
+        run: |
+          set -euo pipefail
+          ID_LOWER=$(echo "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')
+          CURRENT=""
+          if INDEX=$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/${ID_LOWER}/index.json" 2>/dev/null); then
+            CURRENT=$(echo "$INDEX" | jq -r '.versions[-1] // empty')
+          fi
+          bump_patch() { local v="$1"; local major minor patch; IFS=. read -r major minor patch <<< "$v"; patch=${patch%%-*}; echo "${major}.${minor}.$((patch + 1))"; }
+          version_gt() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | tail -1)" = "$1" ] && [ "$1" != "$2" ]; }
+          if [ -n "${VERSION_OVERRIDE}" ]; then
+            if [ -n "$CURRENT" ] && ! version_gt "$VERSION_OVERRIDE" "$CURRENT"; then exit 1; fi
+            VER="$VERSION_OVERRIDE"
+          elif [ -z "$CURRENT" ]; then
+            VER=$(grep -oP '(?<=<Version>)[^<]+' "$CSPROJ" | head -1)
+          else
+            VER=$(bump_patch "$CURRENT")
+          fi
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+
+      - name: Pack
+        run: |
+          mkdir -p ../artifacts/nuget
+          dotnet pack OrionSuperflat.csproj -c Release -o ../artifacts/nuget \
+            -p:Version=${{ steps.ver.outputs.version }} \
+            -p:PackageVersion=${{ steps.ver.outputs.version }}
+
+      - name: NuGet login (OIDC)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        working-directory: .
+        run: |
+          dotnet nuget push artifacts/nuget/*.nupkg \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
