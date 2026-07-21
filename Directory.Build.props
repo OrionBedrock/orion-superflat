@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <_PluginBuildRoot>$(HOME)/.cache/orion-plugin-build/$(MSBuildProjectName)/</_PluginBuildRoot>
+    <BaseIntermediateOutputPath>$(_PluginBuildRoot)obj/</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)/</IntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <BaseOutputPath>$(_PluginBuildRoot)bin/</BaseOutputPath>
+    <OutputPath>$(BaseOutputPath)</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <PluginsSiblingRoot Condition="'$(PluginsSiblingRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</PluginsSiblingRoot>
+  </PropertyGroup>
+</Project>

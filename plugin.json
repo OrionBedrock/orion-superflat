@@ -1,0 +1,10 @@
+{
+  "id": "orion:superflat",
+  "version": "1.0.0",
+  "description": "Registers the superflat world generator (bedrock / dirt / grass layers).",
+  "authors": ["Orion"],
+  "main": "OrionSuperflat.OrionSuperflatPlugin",
+  "depend": [],
+  "softdepend": [],
+  "provides": ["orion:superflat"]
+}
