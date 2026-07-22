@@ -25,6 +25,13 @@ jobs:
           ref: development
           path: OrionServerBE
 
+      - name: Checkout orion-minimal-items
+        uses: actions/checkout@v4
+        with:
+          repository: OrionBedrock/orion-minimal-items
+          ref: development
+          path: deps/orion-minimal-items
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -32,6 +39,13 @@ jobs:
 
       - name: Pack Orion SDK from server checkout
         run: bash scripts/ci-setup-server-sdk.sh
+
+      - name: Build orion-minimal-items
+        working-directory: deps/orion-minimal-items
+        run: |
+          rm -rf "$HOME/.cache/orion-plugin-build"
+          dotnet restore OrionMinimalItems.csproj --configfile "$GITHUB_WORKSPACE/plugin/nuget.config" --force-evaluate
+          dotnet build OrionMinimalItems.csproj -c Release --configfile "$GITHUB_WORKSPACE/plugin/nuget.config" --no-restore
 
       - name: Build plugin
         run: |
@@ -46,5 +60,5 @@ jobs:
 
       - name: Smoke boot server with plugin
         env:
-          PLUGIN_DEP_DIRS: ""
+          PLUGIN_DEP_DIRS: ${{ github.workspace }}/deps/orion-minimal-items
         run: bash scripts/ci-smoke-server.sh
